@@ -1,0 +1,102 @@
+## Introdução
+
+Obrigado por se candidatar à vaga de desenvolvedor Full Stack na Labzz! Vamos Labzzzzzzzzar o mundo inteiro, do backend ao frontend! 🚀🌐
+
+Nosso teste Full Stack foi meticulosamente projetado para desafiar suas habilidades em todas as camadas da aplicação. Queremos ver sua maestria em ação! Nossa operação está crescendo exponencialmente, e precisamos de verdadeiros #N1NJ4SF0D4Z que dominem tanto o backend quanto o frontend para se juntar à nossa revolução tecnológica! 💪💻
+
+Este desafio permitirá que você demonstre sua expertise em:
+
+- Arquitetura de microsserviços e/ou monolitos
+- Desenvolvimento seguro e responsável em ambas as pontas
+- Next.js e React para interfaces deslumbrantes
+- Bancos de dados e caching para performance excepcional
+- Design responsivo e acessível
+- Animações e interações de usuário fluidas
+- DevOps e observabilidade
+
+Está pronto para mostrar que você é o mestre tanto do servidor quanto do cliente? Vamos nessa!
+
+## O Desafio
+
+Sua missão é criar um sistema de chat em tempo real completo, do backend ao frontend. Este sistema deve ser robusto, escalável, seguro e oferecer uma experiência de usuário excepcional.
+
+<aside>
+💡
+
+lembrete: isso é um teste, você pode escolher qual tecnologia usar, um ou mais bancos de dados, queremos ver como você trabalha com desafios técnicos, escolhas de tecnologias, etc., a ideia aqui é avaliar como você atua como técnico.
+
+</aside>
+
+### Requisitos Principais
+
+1. **Backend**
+    - Escolha entre Node.js com TypeScript ou PHP 8+
+    - Arquitetura de microsserviços, monorepo ou monolito
+    - PostgreSQL, MySQL, MongoDB, Cassandra ou ScyllaDB para persistência
+    - Redis ou Memcache para caching
+    - Elasticsearch para busca avançada
+2. **Frontend**
+    - Next.js com TypeScript
+    - Tailwind CSS para estilização
+    - Design responsivo (abordagem mobile-first)
+    - Suporte a múltiplos idiomas (i18n)
+3. **Funcionalidades Essenciais**
+    - Autenticação segura com OAuth2 e 2FA
+    - CRUD completo de usuários
+    - Chat em tempo real com WebSockets
+    - Histórico de conversas com paginação
+    - Busca de mensagens e usuários
+4. **Segurança e Conformidade**
+    - Prevenção contra injeções SQL, XSS e CSRF
+    - Criptografia de dados sensíveis
+    - Conformidade com WCAG 2.1 para acessibilidade
+5. **Performance e Escalabilidade**
+    - Caching em múltiplas camadas (backend e frontend)
+    - Processamento assíncrono com filas
+    - Otimização de assets frontend (code splitting, lazy loading)
+6. **UX/UI**
+    - Animações suaves (escolha entre vanilla JS, Rive ou Lottie)
+    - Modo escuro
+    - Indicadores de digitação em tempo real
+7. **Testes**
+    - Testes unitários e de integração no backend
+    - Testes de componentes e E2E no frontend
+    - Mínimo de 80% de cobertura de código
+8. **DevOps e Observabilidade**
+    - Containerização com Docker
+    - Pipeline básico de CI/CD
+    - Logging estruturado e métricas de performance
+9. **Documentação**
+    - API documentada com Swagger/OpenAPI
+    - README detalhado para setup do projeto
+    - Comentários claros em partes complexas do código
+10. **Bônus**
+    - Implementação básica em React Native
+    - Integração com um LLM para respostas automáticas no chat
+    - Testes de performance com k6 ou similar
+
+## Entrega
+
+- Repositório Git público com backend e frontend
+- Documentação completa de setup e arquitetura
+- Coleção Postman/Swagger para testes de API
+- Link para versão deployada da aplicação
+
+## Critérios de Avaliação
+
+Avaliaremos sua submissão baseado em:
+
+1. Qualidade e organização do código em ambas as pontas
+2. Arquitetura e decisões técnicas
+3. Segurança e tratamento de dados
+4. Performance e escalabilidade
+5. Qualidade da interface e experiência do usuário
+6. Cobertura e qualidade dos testes
+7. Clareza da documentação
+8. Uso de design patterns e princípios SOLID
+
+## Conclusão
+
+Este é o momento de brilhar em todo o espectro do desenvolvimento! Mostre-nos sua capacidade de criar sistemas robustos no backend e interfaces deslumbrantes no frontend. Estamos em busca de um verdadeiro mago Full Stack que possa ajudar a Labzzzzzzzar o mundo digital de ponta a ponta!
+
+Que seu código seja limpo, suas APIs sejam rápidas e suas UIs sejam impecáveis! 💻🚀✨
