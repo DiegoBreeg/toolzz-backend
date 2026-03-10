@@ -103,7 +103,7 @@ export default function ChatPage() {
     });
 
     return () => {
-      echo.leave(`private-chat.${me.id}`);
+      echo.leave(`chat.${me.id}`);
     };
   }, [activeUser, me, token]);
 

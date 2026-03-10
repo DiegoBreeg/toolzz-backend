@@ -125,6 +125,10 @@ A API usa tokens Bearer via Laravel Sanctum. Após registrar ou fazer login, inc
 Authorization: Bearer {seu-token}
 ```
 
+## Nota sobre CSRF
+
+As rotas em `/api` usam autenticação por Bearer token e não exigem CSRF. Para um fluxo SPA stateful, adicione CSRF e ajuste o middleware conforme necessário.
+
 ## Endpoints
 
 ### Autenticação
