@@ -141,12 +141,82 @@
                 "summary": "Listar conversas",
                 "description": "Retorna todas as conversas do usuário com última mensagem e não lidas",
                 "operationId": "afab3f54e9820c629f35a6d0bf91fd0a",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Pagina atual",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Itens por pagina (max 100)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Lista de conversas"
                     },
                     "401": {
                         "description": "Não autenticado"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/typing": {
+            "post": {
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Indicador de digitacao",
+                "description": "Atualiza o status de digitacao em tempo real",
+                "operationId": "72a95d2bc202b81639b7c3272f1d8ae6",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "receiver_id",
+                                    "is_typing"
+                                ],
+                                "properties": {
+                                    "receiver_id": {
+                                        "description": "ID do destinatario",
+                                        "type": "integer"
+                                    },
+                                    "is_typing": {
+                                        "description": "Se esta digitando",
+                                        "type": "boolean"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Status enviado"
+                    },
+                    "422": {
+                        "description": "Erro de validacao"
                     }
                 },
                 "security": [

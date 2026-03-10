@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Events\TypingStatusUpdated;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\ChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use OpenApi\Attributes as OA;
 
 class ChatController extends Controller
@@ -150,6 +152,10 @@ class ChatController extends Controller
         summary: "Listar conversas",
         description: "Retorna todas as conversas do usuário com última mensagem e não lidas",
         security: [["bearerAuth" => []]],
+        parameters: [
+            new OA\Parameter(name: "page", in: "query", description: "Pagina atual", required: false, schema: new OA\Schema(type: "integer", minimum: 1)),
+            new OA\Parameter(name: "per_page", in: "query", description: "Itens por pagina (max 100)", required: false, schema: new OA\Schema(type: "integer", minimum: 1, maximum: 100))
+        ],
         responses: [
             new OA\Response(response: 200, description: "Lista de conversas"),
             new OA\Response(response: 401, description: "Não autenticado")
@@ -157,42 +163,123 @@ class ChatController extends Controller
     )]
     public function conversations(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
 
-        $conversations = Message::where('sender_id', $userId)
+        $userId = $request->user()->id;
+        $perPage = (int) ($validated['per_page'] ?? 20);
+
+        $messages = Message::where('sender_id', $userId)
             ->orWhere('receiver_id', $userId)
             ->with(['sender:id,name', 'receiver:id,name'])
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->groupBy(function ($message) use ($userId) {
-                return $message->sender_id === $userId
-                    ? $message->receiver_id
-                    : $message->sender_id;
-            })
-            ->map(function ($messages) use ($userId) {
-                $lastMessage = $messages->first();
-                $otherUser = $lastMessage->sender_id === $userId
-                    ? $lastMessage->receiver
-                    : $lastMessage->sender;
+            ->get();
 
-                return [
+        $conversationData = [];
+        $orderedKeys = [];
+
+        foreach ($messages as $message) {
+            $otherUserId = $message->sender_id === $userId
+                ? $message->receiver_id
+                : $message->sender_id;
+
+            if (!array_key_exists($otherUserId, $conversationData)) {
+                $orderedKeys[] = $otherUserId;
+                $otherUser = $message->sender_id === $userId
+                    ? $message->receiver
+                    : $message->sender;
+
+                $conversationData[$otherUserId] = [
                     'user' => $otherUser,
                     'last_message' => [
-                        'id' => $lastMessage->id,
-                        'content' => $lastMessage->content,
-                        'is_read' => $lastMessage->is_read,
-                        'created_at' => $lastMessage->created_at,
+                        'id' => $message->id,
+                        'content' => $message->content,
+                        'is_read' => $message->is_read,
+                        'created_at' => $message->created_at,
                     ],
-                    'unread_count' => $messages->where('receiver_id', $userId)
-                        ->where('is_read', false)
-                        ->count(),
+                    'unread_count' => 0,
                 ];
-            })
-            ->values();
+            }
+
+            if ($message->receiver_id === $userId && $message->is_read === false) {
+                $conversationData[$otherUserId]['unread_count']++;
+            }
+        }
+
+        $conversationList = [];
+        foreach ($orderedKeys as $key) {
+            $conversationList[] = $conversationData[$key];
+        }
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $offset = ($page - 1) * $perPage;
+        $items = array_slice($conversationList, $offset, $perPage);
+
+        $paginator = new LengthAwarePaginator(
+            $items,
+            count($conversationList),
+            $perPage,
+            $page,
+            [
+                'path' => LengthAwarePaginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
 
         return response()->json([
             'message' => 'Conversations retrieved successfully.',
-            'data' => $conversations,
+            'data' => $paginator,
+        ]);
+    }
+
+    /**
+     * Broadcast typing status to another user.
+     */
+    #[OA\Post(
+        path: "/typing",
+        tags: ["Chat"],
+        summary: "Indicador de digitacao",
+        description: "Atualiza o status de digitacao em tempo real",
+        security: [["bearerAuth" => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ["receiver_id", "is_typing"],
+                properties: [
+                    new OA\Property(property: "receiver_id", type: "integer", description: "ID do destinatario"),
+                    new OA\Property(property: "is_typing", type: "boolean", description: "Se esta digitando")
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: "Status enviado"),
+            new OA\Response(response: 422, description: "Erro de validacao")
+        ]
+    )]
+    public function typing(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'receiver_id' => ['required', 'integer', 'exists:users,id'],
+            'is_typing' => ['required', 'boolean'],
+        ]);
+
+        if ($validated['receiver_id'] === $request->user()->id) {
+            return response()->json([
+                'message' => 'You cannot send typing status to yourself.',
+            ], 422);
+        }
+
+        event(new TypingStatusUpdated(
+            $request->user()->id,
+            $validated['receiver_id'],
+            $request->user()->name,
+            $validated['is_typing']
+        ));
+
+        return response()->json([
+            'message' => 'Typing status sent successfully.',
         ]);
     }
 }

@@ -37,6 +37,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/conversations', [ChatController::class, 'conversations']);
     Route::post('/messages', [ChatController::class, 'store']);
     Route::get('/messages/{user}', [ChatController::class, 'index']);
+    Route::post('/typing', [ChatController::class, 'typing']);
 
     // Search routes
     Route::get('/search/messages', [ChatController::class, 'search']);
