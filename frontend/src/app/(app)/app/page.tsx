@@ -18,6 +18,20 @@ type Paginated<T> = {
   last_page: number;
 };
 
+type TypingWhisper = {
+  sender_id: number;
+  receiver_id?: number;
+  is_typing: boolean;
+};
+
+type PresenceChannel = {
+  whisper: (event: string, data: TypingWhisper) => void;
+  listenForWhisper: (
+    event: string,
+    callback: (data: TypingWhisper) => void
+  ) => PresenceChannel;
+};
+
 export default function ChatPage() {
   const router = useRouter();
   const { language } = useLanguage();
@@ -35,6 +49,17 @@ export default function ChatPage() {
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const typingTimer = useRef<NodeJS.Timeout | null>(null);
+  const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const pendingScrollRef = useRef<{
+    previousHeight: number;
+    previousTop: number;
+  } | null>(null);
+  const scrollOnNextRenderRef = useRef(false);
+  const presenceChannelRef = useRef<{
+    name: string;
+    channel: PresenceChannel;
+  } | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -68,7 +93,7 @@ export default function ChatPage() {
 
     const channel = echo.private(`chat.${me.id}`);
 
-    channel.listen("MessageSent", (event: {
+    channel.listen(".message.sent", (event: {
       id: number;
       content: string;
       sender_id: number;
@@ -93,17 +118,40 @@ export default function ChatPage() {
       refreshConversations();
     });
 
-    channel.listen("TypingStatusUpdated", (event: {
-      sender_id: number;
-      is_typing: boolean;
-    }) => {
-      if (activeUser && event.sender_id === activeUser.id) {
+    return () => {
+      echo.leave(`chat.${me.id}`);
+    };
+  }, [activeUser, me, token]);
+
+  useEffect(() => {
+    if (!me || !token || !activeUser) {
+      return;
+    }
+
+    const echo = getEcho(token);
+    if (!echo) {
+      return;
+    }
+
+    const [userA, userB] = [me.id, activeUser.id].sort((a, b) => a - b);
+    const channelName = `presence-chat.${userA}.${userB}`;
+
+    if (presenceChannelRef.current?.name) {
+      echo.leave(presenceChannelRef.current.name);
+    }
+
+    const presence = echo.join(channelName) as PresenceChannel;
+    presenceChannelRef.current = { name: channelName, channel: presence };
+
+    presence.listenForWhisper("typing", (event) => {
+      if (event.sender_id === activeUser.id) {
         setIsTyping(event.is_typing);
       }
     });
 
     return () => {
-      echo.leave(`chat.${me.id}`);
+      echo.leave(channelName);
+      presenceChannelRef.current = null;
     };
   }, [activeUser, me, token]);
 
@@ -124,6 +172,12 @@ export default function ChatPage() {
   async function loadMessages(user: User, page = 1, replace = false) {
     setLoadingMessages(true);
     try {
+      if (!replace && messageContainerRef.current) {
+        pendingScrollRef.current = {
+          previousHeight: messageContainerRef.current.scrollHeight,
+          previousTop: messageContainerRef.current.scrollTop,
+        };
+      }
       const response = await apiFetch<Paginated<Message>>(
         `/messages/${user.id}?page=${page}`
       );
@@ -131,6 +185,9 @@ export default function ChatPage() {
       setMessages((prev) => (replace ? ordered : [...ordered, ...prev]));
       setMessagePage(response.current_page);
       setHasMoreMessages(response.current_page < response.last_page);
+      if (replace) {
+        scrollOnNextRenderRef.current = true;
+      }
     } finally {
       setLoadingMessages(false);
     }
@@ -163,17 +220,20 @@ export default function ChatPage() {
     refreshConversations();
   }
 
-  async function sendTypingStatus(status: boolean) {
-    if (!activeUser) {
+  function sendTypingStatus(status: boolean) {
+    if (!activeUser || !me || !token) {
       return;
     }
 
-    await apiFetch("/typing", {
-      method: "POST",
-      body: JSON.stringify({
-        receiver_id: activeUser.id,
-        is_typing: status,
-      }),
+    const echo = getEcho(token);
+    if (!echo || !presenceChannelRef.current?.channel) {
+      return;
+    }
+
+    presenceChannelRef.current.channel.whisper("typing", {
+      sender_id: me.id,
+      receiver_id: activeUser.id,
+      is_typing: status,
     });
   }
 
@@ -193,6 +253,46 @@ export default function ChatPage() {
     typingTimer.current = setTimeout(() => {
       sendTypingStatus(false);
     }, 1500);
+  }
+
+  useEffect(() => {
+    const container = messageContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    if (pendingScrollRef.current) {
+      const { previousHeight, previousTop } = pendingScrollRef.current;
+      const newHeight = container.scrollHeight;
+      container.scrollTop = newHeight - previousHeight + previousTop;
+      pendingScrollRef.current = null;
+      return;
+    }
+
+    if (scrollOnNextRenderRef.current || shouldStickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight;
+      scrollOnNextRenderRef.current = false;
+    }
+  }, [messages]);
+
+  function handleMessageScroll() {
+    const container = messageContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const nearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+    shouldStickToBottomRef.current = nearBottom;
+
+    if (
+      container.scrollTop < 80 &&
+      activeUser &&
+      hasMoreMessages &&
+      !loadingMessages
+    ) {
+      loadMessages(activeUser, messagePage + 1);
+    }
   }
 
   function handleLogout() {
@@ -283,23 +383,22 @@ export default function ChatPage() {
                 </h2>
               </div>
               {isTyping ? (
-                <span className="text-xs text-[var(--accent-2)]">{t.typing}</span>
+                <span className="flex items-center gap-2 text-xs text-[var(--accent-2)]">
+                  <span>{t.typing}</span>
+                  <span className="flex gap-1">
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent-2)]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent-2)] [animation-delay:120ms]" />
+                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent-2)] [animation-delay:240ms]" />
+                  </span>
+                </span>
               ) : null}
             </div>
 
-            <div className="mt-6 flex h-[420px] flex-col gap-3 overflow-y-auto rounded-2xl bg-[var(--surface)] p-4">
-              {hasMoreMessages ? (
-                <button
-                  type="button"
-                  className="btn-ghost self-center text-xs"
-                  disabled={loadingMessages}
-                  onClick={() =>
-                    activeUser && loadMessages(activeUser, messagePage + 1)
-                  }
-                >
-                  {loadingMessages ? "..." : t.loadMore}
-                </button>
-              ) : null}
+            <div
+              ref={messageContainerRef}
+              onScroll={handleMessageScroll}
+              className="mt-6 flex h-[420px] flex-col gap-3 overflow-y-auto rounded-2xl bg-[var(--surface)] p-4"
+            >
               {messages.length === 0 ? (
                 <p className="text-sm text-[var(--muted)]">Sem mensagens.</p>
               ) : null}

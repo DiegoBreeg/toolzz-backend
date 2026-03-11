@@ -2,11 +2,9 @@
 
 namespace Tests\Feature\Api;
 
-use App\Events\TypingStatusUpdated;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class ChatControllerTest extends TestCase
@@ -124,28 +122,6 @@ class ChatControllerTest extends TestCase
             ]);
 
         $this->assertCount(2, $response->json('data.data'));
-    }
-
-    public function test_user_can_send_typing_status(): void
-    {
-        Event::fake([TypingStatusUpdated::class]);
-
-        $response = $this->actingAs($this->user)
-            ->postJson('/api/typing', [
-                'receiver_id' => $this->otherUser->id,
-                'is_typing' => true,
-            ]);
-
-        $response->assertStatus(200)
-            ->assertJson([
-                'message' => 'Typing status sent successfully.',
-            ]);
-
-        Event::assertDispatched(TypingStatusUpdated::class, function ($event) {
-            return $event->senderId === $this->user->id
-                && $event->receiverId === $this->otherUser->id
-                && $event->isTyping === true;
-        });
     }
 
     public function test_unauthenticated_user_cannot_access_messages(): void

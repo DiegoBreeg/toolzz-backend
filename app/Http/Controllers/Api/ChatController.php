@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Events\TypingStatusUpdated;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\ChatService;
@@ -234,52 +233,4 @@ class ChatController extends Controller
         ]);
     }
 
-    /**
-     * Broadcast typing status to another user.
-     */
-    #[OA\Post(
-        path: "/typing",
-        tags: ["Chat"],
-        summary: "Indicador de digitacao",
-        description: "Atualiza o status de digitacao em tempo real",
-        security: [["bearerAuth" => []]],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ["receiver_id", "is_typing"],
-                properties: [
-                    new OA\Property(property: "receiver_id", type: "integer", description: "ID do destinatario"),
-                    new OA\Property(property: "is_typing", type: "boolean", description: "Se esta digitando")
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 200, description: "Status enviado"),
-            new OA\Response(response: 422, description: "Erro de validacao")
-        ]
-    )]
-    public function typing(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'receiver_id' => ['required', 'integer', 'exists:users,id'],
-            'is_typing' => ['required', 'boolean'],
-        ]);
-
-        if ($validated['receiver_id'] === $request->user()->id) {
-            return response()->json([
-                'message' => 'You cannot send typing status to yourself.',
-            ], 422);
-        }
-
-        event(new TypingStatusUpdated(
-            $request->user()->id,
-            $validated['receiver_id'],
-            $request->user()->name,
-            $validated['is_typing']
-        ));
-
-        return response()->json([
-            'message' => 'Typing status sent successfully.',
-        ]);
-    }
 }

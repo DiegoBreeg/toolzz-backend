@@ -95,10 +95,12 @@ REVERB_PORT=8080
 ./vendor/bin/sail artisan scout:import "App\Models\Message"
 ```
 
-### 8. Iniciar o servidor WebSocket
+### 8. WebSocket (Reverb)
+
+O Reverb sobe automaticamente via Docker Compose. Se precisar reiniciar manualmente:
 
 ```bash
-./vendor/bin/sail artisan reverb:start
+./vendor/bin/sail artisan reverb:restart
 ```
 
 ## Uso da API
