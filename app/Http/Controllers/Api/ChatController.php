@@ -9,6 +9,7 @@ use App\Services\ChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use OpenApi\Attributes as OA;
 
 class ChatController extends Controller
@@ -191,57 +192,61 @@ class ChatController extends Controller
         $userId = $request->user()->id;
         $perPage = (int) ($validated['per_page'] ?? 20);
 
-        $messages = Message::where('sender_id', $userId)
-            ->orWhere('receiver_id', $userId)
+        // Get the latest message id per conversation partner using a DB subquery
+        $latestMessageIds = DB::table('messages')
+            ->selectRaw(
+                'MAX(id) AS last_message_id'
+            )
+            ->where(function ($q) use ($userId) {
+                $q->where('sender_id', $userId)
+                  ->orWhere('receiver_id', $userId);
+            })
+            ->groupByRaw(
+                'CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END',
+                [$userId]
+            );
+
+        $unreadCounts = DB::table('messages')
+            ->where('receiver_id', $userId)
+            ->where('is_read', false)
+            ->selectRaw('sender_id, COUNT(*) AS unread_count')
+            ->groupBy('sender_id')
+            ->pluck('unread_count', 'sender_id');
+
+        $latestMessages = Message::joinSub($latestMessageIds, 'latest', function ($join) {
+            $join->on('messages.id', '=', 'latest.last_message_id');
+        })
             ->with(['sender:id,name', 'receiver:id,name'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('messages.created_at', 'desc')
+            ->paginate($perPage);
 
-        $conversationData = [];
-        $orderedKeys = [];
-
-        foreach ($messages as $message) {
+        $items = [];
+        foreach ($latestMessages->items() as $message) {
             $otherUserId = $message->sender_id === $userId
                 ? $message->receiver_id
                 : $message->sender_id;
 
-            if (!array_key_exists($otherUserId, $conversationData)) {
-                $orderedKeys[] = $otherUserId;
-                $otherUser = $message->sender_id === $userId
-                    ? $message->receiver
-                    : $message->sender;
+            $otherUser = $message->sender_id === $userId
+                ? $message->receiver
+                : $message->sender;
 
-                $conversationData[$otherUserId] = [
-                    'user' => $otherUser,
-                    'last_message' => [
-                        'id' => $message->id,
-                        'content' => $message->content,
-                        'is_read' => $message->is_read,
-                        'created_at' => $message->created_at,
-                    ],
-                    'unread_count' => 0,
-                ];
-            }
-
-            if ($message->receiver_id === $userId && $message->is_read === false) {
-                $conversationData[$otherUserId]['unread_count']++;
-            }
+            $items[] = [
+                'user' => $otherUser,
+                'last_message' => [
+                    'id' => $message->id,
+                    'content' => $message->content,
+                    'is_read' => $message->is_read,
+                    'created_at' => $message->created_at,
+                ],
+                'unread_count' => $unreadCounts[$otherUserId] ?? 0,
+            ];
         }
-
-        $conversationList = [];
-        foreach ($orderedKeys as $key) {
-            $conversationList[] = $conversationData[$key];
-        }
-
-        $page = LengthAwarePaginator::resolveCurrentPage();
-        $offset = ($page - 1) * $perPage;
-        $items = array_slice($conversationList, $offset, $perPage);
 
         $paginator = new LengthAwarePaginator(
             $items,
-            count($conversationList),
+            $latestMessages->total(),
             $perPage,
-            $page,
+            $latestMessages->currentPage(),
             [
                 'path' => LengthAwarePaginator::resolveCurrentPath(),
                 'query' => $request->query(),

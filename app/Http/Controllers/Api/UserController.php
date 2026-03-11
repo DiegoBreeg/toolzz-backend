@@ -139,7 +139,9 @@ class UserController extends Controller
     )]
     public function destroy(Request $request): JsonResponse
     {
-        $request->user()->delete();
+        $user = $request->user();
+        $user->tokens()->delete();
+        $user->delete();
 
         return response()->json([
             'message' => 'Account deleted successfully.',

@@ -299,6 +299,7 @@ export default function ChatPage() {
   }
 
   function handleLogout() {
+    apiFetch("/logout", { method: "POST" }).catch(() => {});
     clearToken();
     router.push("/login");
   }

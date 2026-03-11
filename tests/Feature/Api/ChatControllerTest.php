@@ -154,4 +154,61 @@ class ChatControllerTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['receiver_id']);
     }
+
+    public function test_user_can_search_messages(): void
+    {
+        Message::factory()->create([
+            'sender_id' => $this->user->id,
+            'receiver_id' => $this->otherUser->id,
+            'content' => 'Laravel is awesome',
+        ]);
+
+        Message::factory()->create([
+            'sender_id' => $this->otherUser->id,
+            'receiver_id' => $this->user->id,
+            'content' => 'I agree, Laravel rocks',
+        ]);
+
+        // Message from other users should not appear
+        $thirdUser = User::factory()->create();
+        Message::factory()->create([
+            'sender_id' => $thirdUser->id,
+            'receiver_id' => $this->otherUser->id,
+            'content' => 'Laravel hidden message',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->getJson('/api/search/messages?q=Laravel');
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'message',
+                'data' => ['data'],
+            ]);
+    }
+
+    public function test_search_requires_query_parameter(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->getJson('/api/search/messages');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['q']);
+    }
+
+    public function test_cursor_pagination_on_messages(): void
+    {
+        $messages = Message::factory()->count(5)->create([
+            'sender_id' => $this->user->id,
+            'receiver_id' => $this->otherUser->id,
+        ]);
+
+        $lastMessageId = $messages->sortByDesc('id')->first()->id;
+
+        $response = $this->actingAs($this->user)
+            ->getJson("/api/messages/{$this->otherUser->id}?before={$lastMessageId}&per_page=2");
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['data', 'has_more']);
+    }
 }
