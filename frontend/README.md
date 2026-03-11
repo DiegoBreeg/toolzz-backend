@@ -1,34 +1,40 @@
-# Toolzz Chat Frontend
+# Chat Frontend
 
-Frontend minimo em Next.js para autenticação, usuarios e chat.
+Frontend Next.js para o Chat API.
 
-## Requisitos
+> **Documentação completa:** Veja o [README principal](../README.md) na raiz do projeto.
 
-- Node.js 20+
-- Backend rodando em `http://localhost:8000`
-
-## Configuracao
-
-Crie um arquivo `.env.local` baseado em `.env.example`:
+## Início Rápido
 
 ```bash
+# Instalar dependências
+npm install
+
+# Configurar ambiente
 cp .env.example .env.local
-```
 
-## Rodar o frontend
-
-```bash
+# Rodar em desenvolvimento
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000).
+Acesse http://localhost:3000
 
-## Fluxo basico
+## Scripts
 
-1. Registrar usuario em `/register`
-2. Entrar em `/login`
-3. Escolher um usuario e enviar mensagens em `/app`
+| Comando | Descrição |
+|---------|-----------|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run start` | Servidor de produção |
+| `npm run lint` | Verificação de código |
 
-## WebSocket (opcional)
+## Estrutura
 
-Para mensagens em tempo real, configure as variaveis `NEXT_PUBLIC_REVERB_*`.
+```
+src/
+├── app/           # App Router (páginas)
+│   ├── (app)/     # Páginas autenticadas
+│   └── (auth)/    # Login/Registro
+├── components/    # Componentes React
+└── lib/           # Utilitários (API, WebSocket)
+```
