@@ -45,7 +45,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [messagePage, setMessagePage] = useState(1);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const typingTimer = useRef<NodeJS.Timeout | null>(null);
@@ -169,7 +168,8 @@ export default function ChatPage() {
     setUsers(response.data.data ?? []);
   }
 
-  async function loadMessages(user: User, page = 1, replace = false) {
+  async function loadMessages(user: User, before?: number) {
+    const replace = before === undefined;
     setLoadingMessages(true);
     try {
       if (!replace && messageContainerRef.current) {
@@ -178,13 +178,15 @@ export default function ChatPage() {
           previousTop: messageContainerRef.current.scrollTop,
         };
       }
-      const response = await apiFetch<Paginated<Message>>(
-        `/messages/${user.id}?page=${page}`
+      const params = new URLSearchParams();
+      if (before) params.set("before", String(before));
+      const qs = params.toString();
+      const response = await apiFetch<{ data: Message[]; has_more: boolean }>(
+        `/messages/${user.id}${qs ? `?${qs}` : ""}`
       );
       const ordered = [...response.data].reverse();
       setMessages((prev) => (replace ? ordered : [...ordered, ...prev]));
-      setMessagePage(response.current_page);
-      setHasMoreMessages(response.current_page < response.last_page);
+      setHasMoreMessages(response.has_more);
       if (replace) {
         scrollOnNextRenderRef.current = true;
       }
@@ -196,7 +198,7 @@ export default function ChatPage() {
   async function handleSelectUser(user: User) {
     setActiveUser(user);
     setIsTyping(false);
-    await loadMessages(user, 1, true);
+    await loadMessages(user);
   }
 
   async function handleSendMessage() {
@@ -289,9 +291,10 @@ export default function ChatPage() {
       container.scrollTop < 80 &&
       activeUser &&
       hasMoreMessages &&
-      !loadingMessages
+      !loadingMessages &&
+      messages.length > 0
     ) {
-      loadMessages(activeUser, messagePage + 1);
+      loadMessages(activeUser, messages[0].id);
     }
   }
 
@@ -399,7 +402,10 @@ export default function ChatPage() {
               onScroll={handleMessageScroll}
               className="mt-6 flex h-[420px] flex-col gap-3 overflow-y-auto rounded-2xl bg-[var(--surface)] p-4"
             >
-              {messages.length === 0 ? (
+              {loadingMessages && messages.length > 0 && (
+                <p className="text-center text-xs text-[var(--muted)] py-2">Carregando mensagens anteriores...</p>
+              )}
+              {messages.length === 0 && !loadingMessages ? (
                 <p className="text-sm text-[var(--muted)]">Sem mensagens.</p>
               ) : null}
               {messages.map((message) => (

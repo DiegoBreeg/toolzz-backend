@@ -27,27 +27,48 @@ class ChatController extends Controller
         path: "/messages/{userId}",
         tags: ["Chat"],
         summary: "Listar mensagens",
-        description: "Retorna mensagens entre o usuário autenticado e outro usuário",
+        description: "Retorna mensagens entre o usuário autenticado e outro usuário, com paginação baseada em cursor",
         security: [["bearerAuth" => []]],
         parameters: [
-            new OA\Parameter(name: "userId", in: "path", description: "ID do outro usuário", required: true, schema: new OA\Schema(type: "integer"))
+            new OA\Parameter(name: "userId", in: "path", description: "ID do outro usuário", required: true, schema: new OA\Schema(type: "integer")),
+            new OA\Parameter(name: "before", in: "query", description: "ID da mensagem mais antiga carregada (cursor)", required: false, schema: new OA\Schema(type: "integer")),
+            new OA\Parameter(name: "per_page", in: "query", description: "Quantidade por página (máx 50)", required: false, schema: new OA\Schema(type: "integer", default: 20))
         ],
         responses: [
-            new OA\Response(response: 200, description: "Lista de mensagens paginada"),
+            new OA\Response(response: 200, description: "Lista de mensagens com indicador has_more"),
             new OA\Response(response: 404, description: "Usuário não encontrado")
         ]
     )]
     public function index(Request $request, User $user): JsonResponse
     {
-        $authUserId = $request->user()->id;
+        $validated = $request->validate([
+            'before' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+        ]);
 
-        $messages = Message::betweenUsers($authUserId, $user->id)
-            ->with(['sender:id,name', 'receiver:id,name'])
-            ->paginate(50);
+        $authUserId = $request->user()->id;
+        $perPage = $validated['per_page'] ?? 20;
+
+        $query = Message::betweenUsers($authUserId, $user->id)
+            ->with(['sender:id,name', 'receiver:id,name']);
+
+        if (isset($validated['before'])) {
+            $query->where('messages.id', '<', $validated['before']);
+        }
+
+        $messages = $query->limit($perPage + 1)->get();
+
+        $hasMore = $messages->count() > $perPage;
+        if ($hasMore) {
+            $messages = $messages->slice(0, $perPage);
+        }
 
         $this->chatService->markAsRead($authUserId, $user->id);
 
-        return response()->json($messages);
+        return response()->json([
+            'data' => $messages->values(),
+            'has_more' => $hasMore,
+        ]);
     }
 
     /**
