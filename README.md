@@ -144,14 +144,14 @@ cd ..
 
 ### Iniciar Frontend
 
-**Com Node.js local:**
-```bash
-cd frontend && npm run dev
-```
-
 **Sem Node.js local (via Docker):**
 ```bash
 ./scripts/start-frontend.sh
+```
+
+**Com Node.js local:**
+```bash
+cd frontend && npm run dev
 ```
 
 ### Parar Tudo
