@@ -146,9 +146,12 @@ setup_backend_env() {
 
 # Subir containers Docker
 start_containers() {
-    print_step "Iniciando containers Docker..."
+    print_step "Construindo imagem Docker do Laravel Sail..."
 
     cd "$PROJECT_DIR"
+    ./vendor/bin/sail build
+
+    print_step "Iniciando containers Docker..."
     ./vendor/bin/sail up -d
 
     print_success "Containers iniciados"

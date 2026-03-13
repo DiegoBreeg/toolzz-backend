@@ -35,7 +35,7 @@ API RESTful de chat em tempo real com frontend Next.js, utilizando WebSockets pa
 ```bash
 # Clonar o repositório
 git clone git@github.com:DiegoBreeg/toolzz-backend.git
-cd backend
+cd toolzz-backend
 
 # Executar script de instalação
 ./scripts/setup.sh
