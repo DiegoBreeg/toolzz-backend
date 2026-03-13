@@ -6,7 +6,7 @@ API RESTful de chat em tempo real com frontend Next.js, utilizando WebSockets pa
 
 ### Backend
 - **Laravel 12** - Framework PHP
-- **PHP 8.4** - Runtime
+- **PHP 8.5** - Runtime
 - **PostgreSQL 18** - Banco de dados
 - **Redis** - Cache e filas
 - **Laravel Reverb** - WebSockets para tempo real
@@ -42,15 +42,17 @@ cd toolzz-backend
 ```
 
 O script irá:
-1. Verificar se Docker está instalado e rodando
+1. Verificar se Docker e Docker Compose estão instalados
 2. Verificar se as portas necessárias estão disponíveis
 3. Instalar dependências do backend (Composer via Docker)
-4. Configurar arquivos `.env`
-5. Subir todos os containers
-6. Gerar chave da aplicação
-7. Executar migrações do banco de dados
-8. Instalar dependências do frontend (npm via Docker)
-9. Configurar ambiente do frontend
+4. Configurar arquivos `.env` com chaves únicas
+5. Construir a imagem Docker e subir todos os containers
+6. Aguardar serviços ficarem saudáveis (PostgreSQL, Meilisearch)
+7. Gerar chave da aplicação
+8. Executar migrações do banco de dados
+9. Configurar índices do Meilisearch
+10. Instalar dependências do frontend (npm via Docker)
+11. Configurar ambiente do frontend (sincronizado com backend)
 
 ### Opção 2: Instalação Manual
 
@@ -78,9 +80,10 @@ docker run --rm \
 cp .env.example .env
 ```
 
-#### 4. Subir os containers
+#### 4. Construir e subir os containers
 
 ```bash
+./vendor/bin/sail build
 ./vendor/bin/sail up -d
 ```
 
@@ -89,11 +92,12 @@ cp .env.example .env
 > sudo systemctl stop nginx redis-server postgresql
 > ```
 
-#### 5. Gerar chave e executar migrações
+#### 5. Gerar chave, migrações e configurar Meilisearch
 
 ```bash
 ./vendor/bin/sail artisan key:generate
 ./vendor/bin/sail artisan migrate
+./vendor/bin/sail artisan scout:sync-index-settings
 ```
 
 #### 6. Instalar dependências do frontend (sem Node local)
@@ -112,7 +116,20 @@ docker run --rm \
 #### 7. Configurar ambiente do frontend
 
 ```bash
-cp .env.example .env.local
+cat > .env.local << EOF
+NEXT_PUBLIC_API_URL=http://localhost/api
+NEXT_PUBLIC_REVERB_APP_KEY=$(grep ^REVERB_APP_KEY= ../.env | cut -d= -f2)
+NEXT_PUBLIC_REVERB_HOST=localhost
+NEXT_PUBLIC_REVERB_PORT=8080
+NEXT_PUBLIC_REVERB_SCHEME=http
+EOF
+```
+
+Ou, de volta na raiz do projeto:
+
+```bash
+cd ..
+./scripts/sync-env.sh
 ```
 
 ## Executando o Projeto
@@ -176,14 +193,10 @@ Authorization: Bearer {seu-token}
 | POST | `/api/login` | Fazer login |
 | POST | `/api/logout` | Fazer logout |
 | GET | `/api/user` | Obter usuário autenticado |
-
-#### Usuários
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| GET | `/api/users` | Listar usuários |
-| GET | `/api/users/{id}` | Ver perfil de usuário |
-| PUT | `/api/user` | Atualizar próprio perfil |
+| POST | `/api/forgot-password` | Solicitar reset de senha |
+| POST | `/api/reset-password` | Resetar senha |
+| GET | `/api/verify-email/{id}/{hash}` | Verificar e-mail |
+| POST | `/api/email/verification-notification` | Reenviar e-mail de verificação |
 | DELETE | `/api/user` | Deletar própria conta |
 
 #### Mensagens
@@ -247,7 +260,11 @@ Echo.private(`chat.${userId}`)
 │   │   │   │   └── UserController.php
 │   │   │   └── Auth/
 │   │   │       ├── AuthenticatedSessionController.php
-│   │   │       └── RegisteredUserController.php
+│   │   │       ├── RegisteredUserController.php
+│   │   │       ├── NewPasswordController.php
+│   │   │       ├── PasswordResetLinkController.php
+│   │   │       ├── EmailVerificationNotificationController.php
+│   │   │       └── VerifyEmailController.php
 │   │   └── Requests/
 │   ├── Models/
 │   │   ├── Message.php
@@ -266,21 +283,29 @@ Echo.private(`chat.${userId}`)
 │   │   ├── app/                      # App Router (páginas)
 │   │   ├── components/               # Componentes React
 │   │   └── lib/                      # Utilitários (API, Echo)
-│   ├── .env.example
 │   └── package.json
 ├── routes/
-│   ├── api.php                       # Rotas da API
-│   └── channels.php                  # Canais WebSocket
+│   ├── api.php                       # Rotas da API (REST)
+│   ├── auth.php                      # Rotas de autenticação (Breeze)
+│   ├── channels.php                  # Canais WebSocket
+│   ├── console.php                   # Comandos Artisan
+│   └── web.php                       # Rotas web
 ├── scripts/
 │   ├── setup.sh                      # Instalação automatizada
 │   ├── start.sh                      # Iniciar serviços
 │   ├── start-frontend.sh             # Iniciar frontend
-│   └── stop.sh                       # Parar serviços
+│   ├── stop.sh                       # Parar serviços
+│   └── sync-env.sh                   # Sincronizar .env backend → frontend
 ├── tests/
 │   ├── Feature/
-│   │   └── Api/
-│   │       ├── ChatControllerTest.php
-│   │       └── UserControllerTest.php
+│   │   ├── Api/
+│   │   │   ├── ChatControllerTest.php
+│   │   │   └── UserControllerTest.php
+│   │   └── Auth/
+│   │       ├── AuthenticationTest.php
+│   │       ├── EmailVerificationTest.php
+│   │       ├── PasswordResetTest.php
+│   │       └── RegistrationTest.php
 │   └── Unit/
 │       ├── ChatServiceTest.php
 │       └── MessageTest.php
@@ -297,12 +322,7 @@ Echo.private(`chat.${userId}`)
 | `./scripts/start.sh` | Inicia todos os containers do backend |
 | `./scripts/start-frontend.sh` | Inicia o frontend (Node local ou Docker) |
 | `./scripts/stop.sh` | Para todos os containers |
-
-## Comandos Úteis
-
-```bash
-# Ver logs dos containers
-./vendor/bin/sail logs -f
+| `./scripts/sync-env.sh` | Sincroniza chaves Reverb do backend para o frontend |
 
 # Acessar shell do container PHP
 ./vendor/bin/sail shell
