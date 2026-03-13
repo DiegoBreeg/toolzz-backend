@@ -40,6 +40,19 @@ services:
             - sail
         depends_on:
             - laravel.test
+    queue:
+        image: 'sail-8.5/app'
+        command: ['php', 'artisan', 'queue:work', '--sleep=3', '--tries=3', '--max-time=3600']
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - laravel.test
+            - redis
     pgsql:
         image: 'postgres:18-alpine'
         ports:
@@ -81,7 +94,7 @@ services:
             retries: 3
             timeout: 5s
     meilisearch:
-        image: 'getmeili/meilisearch:latest'
+        image: 'getmeili/meilisearch:v1.12'
         ports:
             - '${FORWARD_MEILISEARCH_PORT:-7700}:7700'
         environment:

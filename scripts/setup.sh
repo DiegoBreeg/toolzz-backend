@@ -153,9 +153,36 @@ start_containers() {
 
     print_success "Containers iniciados"
 
-    # Aguardar containers ficarem saudáveis
+    # Aguardar serviços ficarem saudáveis
     print_step "Aguardando serviços ficarem prontos..."
-    sleep 10
+
+    local max_attempts=30
+    local attempt=0
+
+    # Aguardar PostgreSQL
+    while [ $attempt -lt $max_attempts ]; do
+        if ./vendor/bin/sail exec pgsql pg_isready -q -d "${DB_DATABASE:-laravel}" -U "${DB_USERNAME:-sail}" 2>/dev/null; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    # Aguardar Meilisearch
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if docker exec toolzz-backend-meilisearch-1 wget --no-verbose --spider http://127.0.0.1:7700/health 2>/dev/null; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+
+    if [ $attempt -ge $max_attempts ]; then
+        print_warning "Meilisearch demorou para iniciar. Verifique os logs com: ./vendor/bin/sail logs meilisearch"
+    fi
+
+    print_success "Serviços prontos"
 }
 
 # Gerar chave da aplicação
@@ -176,6 +203,16 @@ run_migrations() {
     ./vendor/bin/sail artisan migrate --force
 
     print_success "Migrações executadas"
+}
+
+# Configurar índices do Meilisearch
+setup_meilisearch() {
+    print_step "Configurando índices do Meilisearch..."
+
+    cd "$PROJECT_DIR"
+    ./vendor/bin/sail artisan scout:sync-index-settings
+
+    print_success "Índices do Meilisearch configurados"
 }
 
 # Instalar dependências do frontend via Docker
@@ -268,6 +305,7 @@ main() {
     start_containers
     generate_app_key
     run_migrations
+    setup_meilisearch
     install_frontend_dependencies
     setup_frontend_env
     show_summary
