@@ -57,8 +57,8 @@ O script irá:
 #### 1. Clonar o repositório
 
 ```bash
-git clone <url-do-repositorio>
-cd backend
+git clone git@github.com:DiegoBreeg/toolzz-backend.git
+cd toolzz-backend
 ```
 
 #### 2. Instalar dependências do backend (sem PHP/Composer local)
